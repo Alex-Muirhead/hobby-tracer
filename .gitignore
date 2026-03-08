@@ -2,3 +2,5 @@
 
 # Don't save the images yet
 *.pbm
+*.pgm
+*.ppm

@@ -7,13 +7,15 @@ fn main() -> Result<(), Error> {
     // Let's write a simple PBM file
     let width = 9;
     let height = 16;
+    let max_value = 15;
 
-    let filename = "render.pbm";
+    let filename = "render.pgm";
     let mut output = File::create(filename)?;
 
     // Header
-    writeln!(output, "P1")?;
+    writeln!(output, "P2")?;
     writeln!(output, "{width} {height}")?;
+    writeln!(output, "{max_value}")?;
 
     // Some fake data to help me get started
     let mut data = vec![0; width * height];
@@ -21,7 +23,7 @@ fn main() -> Result<(), Error> {
         for col in 0..width {
             let idx = row * width + col;
             // Should hopefully make a checkerboard pattern
-            data[idx] = idx % 2;
+            data[idx] = idx % 2 * row;
         }
     }
 
@@ -31,8 +33,6 @@ fn main() -> Result<(), Error> {
             let idx = row * width + col;
             write!(output, "{} ", data[idx])?;
         }
-        // Not _entirely_ necessary
-        write!(output, "\n")?;
     }
 
     Ok(())
