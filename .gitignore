@@ -4,3 +4,6 @@
 *.pbm
 *.pgm
 *.ppm
+
+# We can convert to jpeg!
+*.jpeg
