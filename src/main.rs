@@ -1,42 +1,11 @@
 use std::fmt::Display;
 use std::fs::File;
-use std::io::{Error, Write};
+use std::io::{BufWriter, Error};
 use std::ops::{Add, Mul, Sub};
 
-#[derive(Debug)]
-struct PGM {
-    width: usize,
-    height: usize,
-    max_value: u8,
-    data: Vec<u8>,
-}
+mod pnm;
 
-impl PGM {
-    fn new(width: usize, height: usize, max_value: u8) -> Self {
-        let data = vec![0; width * height];
-        PGM {
-            width,
-            height,
-            max_value,
-            data,
-        }
-    }
-
-    fn write(&self, output: &mut File) -> Result<(), Error> {
-        // Header
-        write!(
-            output,
-            "P2\n{} {}\n{}\n",
-            self.width, self.height, self.max_value
-        )?;
-        // Data
-        for idx in 0..(self.width * self.height) {
-            write!(output, "{} ", self.data[idx])?;
-        }
-
-        Ok(())
-    }
-}
+use crate::pnm::PPM;
 
 #[derive(Debug, Copy, Clone)]
 struct Vec3 {
@@ -108,6 +77,20 @@ fn grayscale(ray: Vec3) -> u8 {
     (scaled * u8::MAX as f64) as u8
 }
 
+fn coloured(ray: Vec3) -> (u8, u8, u8) {
+    let ray = ray.norm();
+    // normed components will be in [-1.0, +1.0]
+    // Scaled is now in [0.0, 1.0]
+    let scaled_x = 0.5 * (1.0 - ray.x);
+    let scaled_y = 0.5 * (1.0 - ray.y);
+    let scaled_z = 0.5 * (1.0 - ray.z);
+    (
+        (scaled_x * u8::MAX as f64) as u8,
+        (scaled_y * u8::MAX as f64) as u8,
+        (scaled_z * u8::MAX as f64) as u8,
+    )
+}
+
 fn hit_sphere(center: Vec3, radius: f64, ray_origin: Vec3, ray_dir: Vec3) -> Option<Vec3> {
     // (center - (ray_origin + t*ray_dir))^2 == radius^2
     // ((center - ray_origin) - t*ray_dir)^2 == radius^2
@@ -138,10 +121,11 @@ fn main() -> Result<(), Error> {
     let image_height = pixel_per_unit * unit_height;
     let max_value = 255;
 
-    let filename = "render.pgm";
-    let mut output = File::create(filename)?;
+    let filename = "render.ppm";
+    let output = File::create(filename)?;
+    let mut output_buffer = BufWriter::new(output);
 
-    let mut image = PGM::new(image_width, image_height, max_value);
+    let mut image = PPM::new(image_width, image_height, max_value);
 
     // --- Camera Setup ---
     let camera_width = unit_width as f64;
@@ -165,15 +149,15 @@ fn main() -> Result<(), Error> {
             let hit_point = hit_sphere(sphere_center, sphere_radius, origin, direction);
 
             let pixel_value = match hit_point {
-                None => 125,
-                Some(point) => grayscale(point - sphere_center),
+                None => (125, 125, 125),
+                Some(point) => coloured(point - sphere_center),
             };
             image.data[idx] = pixel_value;
         }
     }
 
     // Contents
-    image.write(&mut output)?;
+    image.write(&mut output_buffer)?;
 
     Ok(())
 }
