@@ -13,13 +13,24 @@ struct Ray {
 }
 
 impl Ray {
-    fn at(self, t: f64) -> Vec3 {
+    fn at(&self, t: f64) -> Vec3 {
         self.origin + t * self.normal
     }
 }
 
 trait Visible {
-    fn intersect(self: &Self, ray: Ray) -> Option<(f64, Ray)>;
+    fn intersect(&self, ray: &Ray) -> Option<(f64, Ray)>;
+}
+
+impl<T> Visible for Vec<T>
+where
+    T: Visible,
+{
+    fn intersect(&self, ray: &Ray) -> Option<(f64, Ray)> {
+        self.iter()
+            .filter_map(|obj| obj.intersect(ray))
+            .min_by(|x, y| x.0.total_cmp(&y.0))
+    }
 }
 
 struct Sphere {
@@ -28,7 +39,7 @@ struct Sphere {
 }
 
 impl Visible for Sphere {
-    fn intersect(self: &Self, ray: Ray) -> Option<(f64, Ray)> {
+    fn intersect(self: &Self, ray: &Ray) -> Option<(f64, Ray)> {
         let co = self.center - ray.origin;
 
         let a = ray.normal.dot(&ray.normal);
@@ -92,10 +103,20 @@ fn main() -> Result<(), Error> {
     let origin = Vec3::new(0.0, 0.0, 0.0);
 
     // --- Sphere Setup ---
-    let sphere = Sphere {
+    let front_sphere = Sphere {
         center: Vec3::z_vec(-1.0),
         radius: 0.5,
     };
+    let back_sphere = Sphere {
+        center: Vec3 {
+            x: -1.0,
+            y: 1.0,
+            z: -2.0,
+        },
+        radius: 0.5,
+    };
+
+    let world = vec![front_sphere, back_sphere];
 
     // Some fake data to help me get started
     for row in 0..image_height {
@@ -108,7 +129,7 @@ fn main() -> Result<(), Error> {
                 origin,
                 normal: direction,
             };
-            let pixel_value = match sphere.intersect(ray) {
+            let pixel_value = match world.intersect(&ray) {
                 None => (125, 125, 125),
                 Some((_, reflection)) => coloured(reflection.normal),
             };
