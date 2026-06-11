@@ -1,93 +1,18 @@
-use std::fmt::Display;
 use std::fs::File;
 use std::io::{BufWriter, Error};
-use std::ops::{Add, Mul, Sub};
 
 mod pnm;
+mod vec;
 
 use crate::pnm::PPM;
-
-#[derive(Debug, Copy, Clone)]
-struct Vec3 {
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-impl Sub for Vec3 {
-    type Output = Vec3;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Vec3::new(self.x - rhs.x, self.y - rhs.y, self.z - rhs.z)
-    }
-}
-
-impl Add for Vec3 {
-    type Output = Vec3;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Vec3::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
-    }
-}
-
-impl Mul<f64> for Vec3 {
-    type Output = Vec3;
-
-    fn mul(self, rhs: f64) -> Self::Output {
-        Vec3::new(self.x * rhs, self.y * rhs, self.z * rhs)
-    }
-}
-
-impl Display for Vec3 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "({}, {}, {})", self.x, self.y, self.z)
-    }
-}
-
-impl Vec3 {
-    fn new(x: f64, y: f64, z: f64) -> Self {
-        Vec3 { x, y, z }
-    }
-    fn dot(&self, other: &Vec3) -> f64 {
-        self.x * other.x + self.y * other.y + self.z * other.z
-    }
-    fn length(&self) -> f64 {
-        self.dot(self).sqrt()
-    }
-    fn norm(&self) -> Vec3 {
-        let l = self.length();
-        Vec3::new(self.x / l, self.y / l, self.z / l)
-    }
-    fn x_vec(x: f64) -> Self {
-        Vec3 { x, y: 0.0, z: 0.0 }
-    }
-    fn y_vec(y: f64) -> Self {
-        Vec3 { x: 0.0, y, z: 0.0 }
-    }
-    fn z_vec(z: f64) -> Self {
-        Vec3 { x: 0.0, y: 0.0, z }
-    }
-}
-
-fn grayscale(ray: Vec3) -> u8 {
-    let ray = ray.norm();
-    // normed y-component will be in [-1.0, +1.0]
-    let scaled = 0.5 * (1.0 - ray.z);
-    // Scaled is now in [0.0, 1.0]
-    (scaled * u8::MAX as f64) as u8
-}
+use crate::vec::Vec3;
 
 fn coloured(ray: Vec3) -> (u8, u8, u8) {
-    let ray = ray.norm();
-    // normed components will be in [-1.0, +1.0]
-    // Scaled is now in [0.0, 1.0]
-    let scaled_x = 0.5 * (1.0 - ray.x);
-    let scaled_y = 0.5 * (1.0 - ray.y);
-    let scaled_z = 0.5 * (1.0 - ray.z);
+    let scaled = 0.5 * (1.0 - ray.norm());
     (
-        (scaled_x * u8::MAX as f64) as u8,
-        (scaled_y * u8::MAX as f64) as u8,
-        (scaled_z * u8::MAX as f64) as u8,
+        (scaled.x * u8::MAX as f64) as u8,
+        (scaled.y * u8::MAX as f64) as u8,
+        (scaled.z * u8::MAX as f64) as u8,
     )
 }
 
@@ -97,14 +22,14 @@ fn hit_sphere(center: Vec3, radius: f64, ray_origin: Vec3, ray_dir: Vec3) -> Opt
     // (co).dot(co) - 2.0 * t*co.dot(ray_dir) + t^2*ray_dir.dot(ray_dir)
     let co = center - ray_origin;
     let a = ray_dir.dot(&ray_dir);
-    let b = -2.0 * co.dot(&ray_dir);
+    let h = co.dot(&ray_dir); // = -b/2
     let c = co.dot(&co) - radius * radius;
-    let determinant = b * b - 4.0 * a * c;
-    if determinant < 0.0 {
+    let discriminant = h * h - a * c;
+    if discriminant < 0.0 {
         return None;
     }
     // Always use a positive solution
-    let t = (-b + determinant.sqrt()) / (2.0 * a);
+    let t = (h + discriminant.sqrt()) / a;
     Some(ray_origin + ray_dir * t)
 }
 
