@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
 #[derive(Debug, Copy, Clone)]
 pub struct Vec3 {
@@ -28,7 +28,7 @@ impl Sub<Vec3> for f64 {
     type Output = Vec3;
 
     fn sub(self, rhs: Vec3) -> Self::Output {
-        Vec3::new(rhs.x - self, rhs.y - self, rhs.z - self)
+        Vec3::new(self - rhs.x, self - rhs.y, self - rhs.z)
     }
 }
 
@@ -60,7 +60,15 @@ impl Mul<Vec3> for f64 {
     type Output = Vec3;
 
     fn mul(self, rhs: Vec3) -> Self::Output {
-        Vec3::new(rhs.x * self, rhs.y * self, rhs.z * self)
+        Vec3::new(self * rhs.x, self * rhs.y, self * rhs.z)
+    }
+}
+
+impl Div<f64> for Vec3 {
+    type Output = Vec3;
+
+    fn div(self, rhs: f64) -> Self::Output {
+        Vec3::new(self.x / rhs, self.y / rhs, self.z / rhs)
     }
 }
 

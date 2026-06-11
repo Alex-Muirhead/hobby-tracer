@@ -7,30 +7,61 @@ mod vec;
 use crate::pnm::PPM;
 use crate::vec::Vec3;
 
+struct Ray {
+    origin: Vec3,
+    normal: Vec3,
+}
+
+impl Ray {
+    fn at(self, t: f64) -> Vec3 {
+        self.origin + t * self.normal
+    }
+}
+
+trait Visible {
+    fn intersect(self: &Self, ray: Ray) -> Option<(f64, Ray)>;
+}
+
+struct Sphere {
+    center: Vec3,
+    radius: f64,
+}
+
+impl Visible for Sphere {
+    fn intersect(self: &Self, ray: Ray) -> Option<(f64, Ray)> {
+        let co = self.center - ray.origin;
+
+        let a = ray.normal.dot(&ray.normal);
+        let h = co.dot(&ray.normal); // = -b/2
+        let c = co.dot(&co) - self.radius * self.radius;
+
+        let discriminant = h * h - a * c;
+        if discriminant < 0.0 {
+            return None;
+        }
+
+        // Choose the closer solution
+        let t = (h - discriminant.sqrt()) / a;
+        let point = ray.at(t);
+        let normal = (point - co) / self.radius;
+        return Some((
+            t,
+            Ray {
+                origin: point,
+                normal,
+            },
+        ));
+    }
+}
+
 fn coloured(ray: Vec3) -> (u8, u8, u8) {
-    let scaled = 0.5 * (1.0 - ray.norm());
+    let ray = ray.norm();
+    let scaled = 0.5 * (ray + 1.0);
     (
         (scaled.x * u8::MAX as f64) as u8,
         (scaled.y * u8::MAX as f64) as u8,
         (scaled.z * u8::MAX as f64) as u8,
     )
-}
-
-fn hit_sphere(center: Vec3, radius: f64, ray_origin: Vec3, ray_dir: Vec3) -> Option<Vec3> {
-    // (center - (ray_origin + t*ray_dir))^2 == radius^2
-    // ((center - ray_origin) - t*ray_dir)^2 == radius^2
-    // (co).dot(co) - 2.0 * t*co.dot(ray_dir) + t^2*ray_dir.dot(ray_dir)
-    let co = center - ray_origin;
-    let a = ray_dir.dot(&ray_dir);
-    let h = co.dot(&ray_dir); // = -b/2
-    let c = co.dot(&co) - radius * radius;
-    let discriminant = h * h - a * c;
-    if discriminant < 0.0 {
-        return None;
-    }
-    // Always use a positive solution
-    let t = (h + discriminant.sqrt()) / a;
-    Some(ray_origin + ray_dir * t)
 }
 
 fn main() -> Result<(), Error> {
@@ -61,8 +92,10 @@ fn main() -> Result<(), Error> {
     let origin = Vec3::new(0.0, 0.0, 0.0);
 
     // --- Sphere Setup ---
-    let sphere_center = Vec3::new(0.0, 0.0, 5.0);
-    let sphere_radius = 2.4;
+    let sphere = Sphere {
+        center: Vec3::z_vec(-1.0),
+        radius: 0.5,
+    };
 
     // Some fake data to help me get started
     for row in 0..image_height {
@@ -71,11 +104,13 @@ fn main() -> Result<(), Error> {
             let u = row as f64 / image_height as f64;
             let v = col as f64 / image_width as f64;
             let direction = lower_left + camera_vertical * u + camera_horizontal * v - origin;
-            let hit_point = hit_sphere(sphere_center, sphere_radius, origin, direction);
-
-            let pixel_value = match hit_point {
+            let ray = Ray {
+                origin,
+                normal: direction,
+            };
+            let pixel_value = match sphere.intersect(ray) {
                 None => (125, 125, 125),
-                Some(point) => coloured(point - sphere_center),
+                Some((_, reflection)) => coloured(reflection.normal),
             };
             image.data[idx] = pixel_value;
         }
