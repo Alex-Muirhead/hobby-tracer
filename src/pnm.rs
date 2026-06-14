@@ -3,17 +3,17 @@ use std::fs::File;
 use std::io::{Error, Write};
 
 #[derive(Debug)]
-pub struct PGM {
+pub struct Pgm {
     width: usize,
     height: usize,
     max_value: u8,
     pub data: Vec<u8>,
 }
 
-impl PGM {
+impl Pgm {
     pub fn new(width: usize, height: usize, max_value: u8) -> Self {
         let data = vec![0; width * height];
-        PGM {
+        Pgm {
             width,
             height,
             max_value,
@@ -30,7 +30,7 @@ impl PGM {
         )?;
         // Data
         for idx in 0..(self.width * self.height) {
-            write!(output, "{}\n", self.data[idx])?;
+            writeln!(output, "{}", self.data[idx])?;
         }
 
         Ok(())
@@ -38,17 +38,17 @@ impl PGM {
 }
 
 #[derive(Debug)]
-pub struct PPM {
+pub struct Ppm {
     width: usize,
     height: usize,
     max_value: u8,
     pub data: Vec<(u8, u8, u8)>,
 }
 
-impl PPM {
+impl Ppm {
     pub fn new(width: usize, height: usize, max_value: u8) -> Self {
         let data = vec![(0, 0, 0); width * height];
-        PPM {
+        Ppm {
             width,
             height,
             max_value,
@@ -66,7 +66,7 @@ impl PPM {
         // Data
         for idx in 0..(self.width * self.height) {
             let pixel = self.data[idx];
-            write!(output, "{} {} {}\n", pixel.0, pixel.1, pixel.2)?;
+            writeln!(output, "{} {} {}", pixel.0, pixel.1, pixel.2)?;
         }
 
         Ok(())

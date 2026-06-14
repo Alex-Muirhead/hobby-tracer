@@ -4,7 +4,7 @@ use std::io::{BufWriter, Error};
 mod pnm;
 mod vec;
 
-use crate::pnm::PPM;
+use crate::pnm::Ppm;
 use crate::vec::Vec3;
 
 struct Ray {
@@ -18,17 +18,66 @@ impl Ray {
     }
 }
 
+#[derive(Clone, Copy)]
+struct Interval {
+    min: f64,
+    max: f64,
+}
+
+#[allow(dead_code)]
+impl Interval {
+    fn from(min: f64) -> Interval {
+        Interval {
+            min,
+            max: f64::INFINITY,
+        }
+    }
+
+    fn to(max: f64) -> Interval {
+        Interval {
+            min: f64::NEG_INFINITY,
+            max,
+        }
+    }
+
+    fn all() -> Interval {
+        Interval {
+            min: f64::NEG_INFINITY,
+            max: f64::INFINITY,
+        }
+    }
+
+    fn pos() -> Interval {
+        Interval {
+            min: 0.0,
+            max: f64::INFINITY,
+        }
+    }
+
+    fn neg() -> Interval {
+        Interval {
+            min: f64::NEG_INFINITY,
+            max: 0.0,
+        }
+    }
+
+    fn contains(&self, value: &f64) -> bool {
+        self.min <= *value && *value <= self.max
+    }
+}
+
 trait Visible {
-    fn intersect(&self, ray: &Ray) -> Option<(f64, Ray)>;
+    fn intersect(&self, ray: &Ray, within: Interval) -> Option<(f64, Ray)>;
 }
 
 impl<T> Visible for Vec<T>
 where
     T: Visible,
 {
-    fn intersect(&self, ray: &Ray) -> Option<(f64, Ray)> {
+    fn intersect(&self, ray: &Ray, within: Interval) -> Option<(f64, Ray)> {
         self.iter()
-            .filter_map(|obj| obj.intersect(ray))
+            .filter_map(|obj| obj.intersect(ray, within))
+            .filter(|x| within.contains(&x.0))
             .min_by(|x, y| x.0.total_cmp(&y.0))
     }
 }
@@ -39,7 +88,7 @@ struct Sphere {
 }
 
 impl Visible for Sphere {
-    fn intersect(self: &Self, ray: &Ray) -> Option<(f64, Ray)> {
+    fn intersect(&self, ray: &Ray, within: Interval) -> Option<(f64, Ray)> {
         let co = self.center - ray.origin;
 
         let a = ray.normal.dot(&ray.normal);
@@ -52,20 +101,24 @@ impl Visible for Sphere {
         }
 
         // Choose the closer solution
-        let t = (h - discriminant.sqrt()) / a;
+        let sqrtd = discriminant.sqrt();
+        let t = [(h - sqrtd) / a, (h + sqrtd) / a]
+            .into_iter()
+            .find(|t| within.contains(t))?;
+
         let point = ray.at(t);
         let normal = (point - co) / self.radius;
-        return Some((
+        Some((
             t,
             Ray {
                 origin: point,
                 normal,
             },
-        ));
+        ))
     }
 }
 
-fn coloured(ray: Vec3) -> (u8, u8, u8) {
+fn rgb_normal(ray: Vec3) -> (u8, u8, u8) {
     let ray = ray.norm();
     let scaled = 0.5 * (ray + 1.0);
     (
@@ -92,7 +145,7 @@ fn main() -> Result<(), Error> {
     let output = File::create(filename)?;
     let mut output_buffer = BufWriter::new(output);
 
-    let mut image = PPM::new(image_width, image_height, max_value);
+    let mut image = Ppm::new(image_width, image_height, max_value);
 
     // --- Camera Setup ---
     let camera_width = unit_width as f64;
@@ -100,7 +153,7 @@ fn main() -> Result<(), Error> {
     let lower_left = Vec3::new(-camera_width / 2.0, -camera_height / 2.0, -1.0);
     let camera_horizontal = Vec3::x_vec(camera_width);
     let camera_vertical = Vec3::y_vec(camera_height);
-    let origin = Vec3::new(0.0, 0.0, 0.0);
+    let origin = Vec3::z_vec(0.0);
 
     // --- Sphere Setup ---
     let front_sphere = Sphere {
@@ -129,9 +182,9 @@ fn main() -> Result<(), Error> {
                 origin,
                 normal: direction,
             };
-            let pixel_value = match world.intersect(&ray) {
+            let pixel_value = match world.intersect(&ray, Interval::all()) {
                 None => (125, 125, 125),
-                Some((_, reflection)) => coloured(reflection.normal),
+                Some((_, reflection)) => rgb_normal(reflection.normal),
             };
             image.data[idx] = pixel_value;
         }
