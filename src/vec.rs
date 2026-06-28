@@ -1,11 +1,19 @@
 use std::fmt::Display;
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Vec3 {
     pub x: f64,
     pub y: f64,
     pub z: f64,
+}
+
+impl Neg for Vec3 {
+    type Output = Vec3;
+
+    fn neg(self) -> Self::Output {
+        Vec3::new(-self.x, -self.y, -self.z)
+    }
 }
 
 impl Sub for Vec3 {
@@ -88,9 +96,16 @@ impl Vec3 {
     pub fn length(&self) -> f64 {
         self.dot(self).sqrt()
     }
-    pub fn norm(&self) -> Vec3 {
+    pub fn unit(&self) -> Vec3 {
         let l = self.length();
         Vec3::new(self.x / l, self.y / l, self.z / l)
+    }
+    pub fn zero() -> Self {
+        Vec3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
     pub fn x_vec(x: f64) -> Self {
         Vec3 { x, y: 0.0, z: 0.0 }

@@ -1,21 +1,30 @@
 use std::fs::File;
 use std::io::{BufWriter, Error};
 
+mod camera;
 mod pnm;
 mod vec;
 
+use crate::camera::Camera;
 use crate::pnm::Ppm;
 use crate::vec::Vec3;
 
 struct Ray {
     origin: Vec3,
-    normal: Vec3,
+    direction: Vec3,
 }
 
 impl Ray {
     fn at(&self, t: f64) -> Vec3 {
-        self.origin + t * self.normal
+        self.origin + t * self.direction
     }
+}
+
+struct Hit {
+    distance: f64,
+    point: Vec3,
+    normal: Vec3,
+    interior: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -91,8 +100,8 @@ impl Visible for Sphere {
     fn intersect(&self, ray: &Ray, within: Interval) -> Option<(f64, Ray)> {
         let co = self.center - ray.origin;
 
-        let a = ray.normal.dot(&ray.normal);
-        let h = co.dot(&ray.normal); // = -b/2
+        let a = ray.direction.dot(&ray.direction);
+        let h = co.dot(&ray.direction); // = -b/2
         let c = co.dot(&co) - self.radius * self.radius;
 
         let discriminant = h * h - a * c;
@@ -112,14 +121,14 @@ impl Visible for Sphere {
             t,
             Ray {
                 origin: point,
-                normal,
+                direction: normal,
             },
         ))
     }
 }
 
 fn rgb_normal(ray: Vec3) -> (u8, u8, u8) {
-    let ray = ray.norm();
+    let ray = ray.unit();
     let scaled = 0.5 * (ray + 1.0);
     (
         (scaled.x * u8::MAX as f64) as u8,
@@ -130,41 +139,34 @@ fn rgb_normal(ray: Vec3) -> (u8, u8, u8) {
 
 fn main() -> Result<(), Error> {
     // --- No libraries at first! --
-
-    let pixel_per_unit = 500;
-
-    let unit_width = 4;
-    let unit_height = 2;
+    let camera = Camera {
+        size: camera::Size::Height(2.0),
+        resolution: (1000, 1000),
+        focal_length: 2.0,
+        ..Camera::default()
+    };
 
     // Let's write a simple PBM file
-    let image_width = pixel_per_unit * unit_width;
-    let image_height = pixel_per_unit * unit_height;
-    let max_value = 255;
+    let image_width = camera.resolution.0 as usize;
+    let image_height = camera.resolution.1 as usize;
 
+    let max_value = 255;
     let filename = "render.ppm";
     let output = File::create(filename)?;
     let mut output_buffer = BufWriter::new(output);
 
-    let mut image = Ppm::new(image_width, image_height, max_value);
-
-    // --- Camera Setup ---
-    let camera_width = unit_width as f64;
-    let camera_height = unit_height as f64;
-    let lower_left = Vec3::new(-camera_width / 2.0, -camera_height / 2.0, -1.0);
-    let camera_horizontal = Vec3::x_vec(camera_width);
-    let camera_vertical = Vec3::y_vec(camera_height);
-    let origin = Vec3::z_vec(0.0);
+    let mut image = Ppm::new(image_width as usize, image_height as usize, max_value);
 
     // --- Sphere Setup ---
     let front_sphere = Sphere {
-        center: Vec3::z_vec(-1.0),
+        center: Vec3::z_vec(1.0),
         radius: 0.5,
     };
     let back_sphere = Sphere {
         center: Vec3 {
             x: -1.0,
             y: 1.0,
-            z: -2.0,
+            z: 2.0,
         },
         radius: 0.5,
     };
@@ -175,16 +177,12 @@ fn main() -> Result<(), Error> {
     for row in 0..image_height {
         for col in 0..image_width {
             let idx = row * image_width + col;
-            let u = row as f64 / image_height as f64;
-            let v = col as f64 / image_width as f64;
-            let direction = lower_left + camera_vertical * u + camera_horizontal * v - origin;
-            let ray = Ray {
-                origin,
-                normal: direction,
-            };
+            let u = col as f64 / image_width as f64;
+            let v = row as f64 / image_height as f64;
+            let ray = camera.create_ray(u, v);
             let pixel_value = match world.intersect(&ray, Interval::all()) {
                 None => (125, 125, 125),
-                Some((_, reflection)) => rgb_normal(reflection.normal),
+                Some((_, reflection)) => rgb_normal(-reflection.direction),
             };
             image.data[idx] = pixel_value;
         }
